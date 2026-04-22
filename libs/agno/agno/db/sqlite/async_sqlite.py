@@ -61,6 +61,7 @@ class AsyncSqliteDb(AsyncBaseDb):
         schedules_table: Optional[str] = None,
         schedule_runs_table: Optional[str] = None,
         approvals_table: Optional[str] = None,
+        auth_tokens_table: Optional[str] = None,
         id: Optional[str] = None,
     ):
         """
@@ -88,6 +89,7 @@ class AsyncSqliteDb(AsyncBaseDb):
             learnings_table (Optional[str]): Name of the table to store learning records.
             schedules_table (Optional[str]): Name of the table to store cron schedules.
             schedule_runs_table (Optional[str]): Name of the table to store schedule run history.
+            auth_tokens_table (Optional[str]): Name of the table to store OAuth tokens.
             id (Optional[str]): ID of the database.
 
         Raises:
@@ -112,6 +114,7 @@ class AsyncSqliteDb(AsyncBaseDb):
             schedules_table=schedules_table,
             schedule_runs_table=schedule_runs_table,
             approvals_table=approvals_table,
+            auth_tokens_table=auth_tokens_table,
         )
 
         _engine: Optional[AsyncEngine] = db_engine
@@ -174,6 +177,7 @@ class AsyncSqliteDb(AsyncBaseDb):
             (self.schedule_runs_table_name, "schedule_runs"),
             (self.approvals_table_name, "approvals"),
         ]
+        # auth_tokens is opt-in via store_token_in_db=True — created lazily on first write
 
         for table_name, table_type in tables_to_create:
             await self._get_or_create_table(
@@ -395,6 +399,14 @@ class AsyncSqliteDb(AsyncBaseDb):
                 create_table_if_not_found=create_table_if_not_found,
             )
             return self.approvals_table
+
+        elif table_type == "auth_tokens":
+            self.auth_tokens_table = await self._get_or_create_table(
+                table_name=self.auth_tokens_table_name,
+                table_type="auth_tokens",
+                create_table_if_not_found=create_table_if_not_found,
+            )
+            return self.auth_tokens_table
 
         else:
             raise ValueError(f"Unknown table type: '{table_type}'")
@@ -3778,3 +3790,7 @@ class AsyncSqliteDb(AsyncBaseDb):
         except Exception as e:
             log_debug(f"Error updating approval run_status: {e}")
             return 0
+
+    # -- Auth Token methods --
+    # Async CRUD intentionally not implemented; see async_postgres.py for rationale.
+    # Sync SqliteDb handles OAuth token storage; async support is a follow-up.
